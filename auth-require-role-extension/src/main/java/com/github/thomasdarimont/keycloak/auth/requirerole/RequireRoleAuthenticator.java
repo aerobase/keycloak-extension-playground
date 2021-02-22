@@ -89,7 +89,7 @@ public class RequireRoleAuthenticator implements Authenticator {
 
         roleName = roleName.trim();
 
-        if (roleName.isBlank()) {
+        if (roleName == null || roleName == "") {
             return null;
         }
 
@@ -114,7 +114,9 @@ public class RequireRoleAuthenticator implements Authenticator {
         LOG.debugf("Checking if user=%s has role=%s", user.getUsername(), requiredRole.getName());
 
         // First perform cheap role check for direct or composite roles
-        if (RoleUtils.hasRole(user.getRoleMappingsStream(), requiredRole)) {
+        Set<RoleModel> directAssignedRoles = user.getRoleMappings();
+        if (RoleUtils.hasRole(directAssignedRoles, requiredRole)) {
+        //if (RoleUtils.hasRole(user.getRoleMappingsStream(), requiredRole)) {
             return true;
         }
 
