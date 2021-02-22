@@ -3,12 +3,18 @@ package com.github.thomasdarimont.keycloak.auth.requiregroup;
 import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.Authenticator;
+import org.keycloak.events.Errors;
+import org.keycloak.forms.login.LoginFormsProvider;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.GroupModel;
+import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.authentication.AuthenticationFlowError;
+
+import javax.ws.rs.core.Response;
 
 /**
  * Simple {@link Authenticator} that checks of a user is member of a given {@link GroupModel Group}.
@@ -20,6 +26,7 @@ public class RequireGroupAuthenticator implements Authenticator {
     @Override
     public void authenticate(AuthenticationFlowContext context) {
 
+	ClientModel client = context.getAuthenticationSession().getClient();
         AuthenticatorConfigModel configModel = context.getAuthenticatorConfig();
 
         String groupPath = configModel.getConfig().get(RequireGroupAuthenticatorFactory.GROUP);
@@ -29,7 +36,24 @@ public class RequireGroupAuthenticator implements Authenticator {
         if (!isMemberOfGroup(realm, user, groupPath)) {
 
             LOG.debugf("Access denied because of missing group membership. realm=%s username=%s groupPath=%s", realm.getName(), user.getUsername(), groupPath);
-            context.cancelLogin();
+	
+            context.getEvent().user(user);
+            context.getEvent().error(Errors.NOT_ALLOWED);
+
+            // TODO make fallback client configurable
+            // ClientModel fallbackClientForBacklink = realm.getClientByClientId("account");
+
+            LoginFormsProvider loginFormsProvider = context.form();
+            /* TODO set an attribute here to allow overriding fallback client URL.
+               Note that this requires a custom error.ftl.
+            */
+
+            Response errorForm = loginFormsProvider
+                .setError("Access Denied: " + client.getClientId())
+                .createErrorPage(Response.Status.FORBIDDEN);
+
+            context.forceChallenge(errorForm);
+            
             return;
         }
 
@@ -65,7 +89,6 @@ public class RequireGroupAuthenticator implements Authenticator {
 
     @Override
     public void action(AuthenticationFlowContext context) {
-        // NOOP
     }
 
     @Override
